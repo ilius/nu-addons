@@ -62,3 +62,18 @@ def split-lines [] {
 def is-py [] {
 	match name .*\.py
 }
+
+def column-contains [column string] {
+	where $(str from $column | str contains -i $string $column | get $column) == $true
+}
+# Example: ls | column-contains name abc
+
+def name [string] {
+	# where name =~ $string  # <-- case-sensitive
+	column-contains name $string  # <-- case-insensitive
+}
+
+def value [string] {
+	# where value =~ $string  # <-- case-sensitive
+	column-contains value $string  # <-- case-insensitive
+}
