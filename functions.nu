@@ -59,6 +59,10 @@ def split-lines [] {
 	split row '\n' | split column '\n'
 }
 
+def match-i [column regex] {
+	match $column $(build-string "(?i)" $regex)
+}
+
 def is-py [] {
 	match name .*\.py
 }
