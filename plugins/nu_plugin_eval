@@ -1,0 +1,170 @@
+#!/usr/bin/python3
+import json
+import fileinput
+import sys
+import json
+
+from datetime import datetime
+from datetime import timedelta
+
+"""
+Examples:
+
+echo [[a b c]; [1.0 2.5 3]] | eval "a + b + c"
+echo [[a b c]; [1.0 2.5 3]] | eval 'a > 1'
+echo [[h m s]; [12 44 13]] | eval 'timedelta(hours=h, minutes=m, seconds=s)'
+echo [[h m s]; [12 44 13]] | eval 'str(timedelta(hours=h, minutes=m, seconds=s))'
+
+
+ls | eval 'modified.isoformat()'
+ls | eval 'modified + timedelta(days=1, hours=2)'
+
+
+"""
+
+
+
+def print_good_response(response):
+	json_response = {"jsonrpc": "2.0", "method": "response", "params": {"Ok": response}}
+	print(json.dumps(json_response))
+	sys.stdout.flush()
+
+
+def parseValue(x: dict):
+	v = x["value"]
+	if "Primitive" in v:
+		p = v["Primitive"]
+		if "String" in p:
+			return p["String"]
+		if "Int" in p:
+			return int(p["Int"])
+		if "Decimal" in p:
+			return float(p["Decimal"])
+		if "FilePath" in p:
+			return p["FilePath"]
+		if "Filesize" in p:
+			factor, numList = p["Filesize"]
+			if numList:
+				return factor * numList[0]
+			else:
+				return 0
+		if "Date" in p:
+			# p["Date"] = '2021-02-26T10:12:20.755311781+00:00'
+			# return datetime.strptime(p["Date"], '%Y-%m-%dT%H:%M:%S.%f%z')
+			from dateutil.parser import parse
+			return parse(p["Date"])
+		#if "Duration" in p:
+
+
+def get_eval(expr, x):
+	#print(x)
+	params = x["params"]
+	tag = params["tag"]
+	span = tag["span"]
+	value = params["value"]
+
+	try:
+		row = value["Row"]
+	except KeyError:
+		#print(repr(value))
+		return {"Err": {"error": {"TypeError": {
+			"expected": "row",
+			"actual": {"span": span},
+		}}}}
+	else:
+		entries = {
+			key: parseValue(value)
+			for key, value in row["entries"].items()
+		}
+
+	result = eval(expr, entries, {
+		"datetime": datetime,
+		"timedelta": timedelta,
+	})
+	resultType = "String"
+	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`, `ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`, `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
+
+	if isinstance(result, bool):
+		resultType = "Boolean"
+	elif isinstance(result, int):
+		resultType = "Int"
+		result = str(result)
+	elif isinstance(result, float):
+		resultType = "Decimal"
+		result = str(result)
+	elif isinstance(result, datetime):
+		resultType = "Date"
+		result = result.isoformat()
+	elif isinstance(result, timedelta):
+		resultType = "Duration"
+		microseconds = int(result.total_seconds()) * 1000000000 + result.microseconds
+		result = str(microseconds)
+
+	#print(result, resultType)
+
+	return {
+		"Ok": {
+			"Value": {
+				"tag": tag,
+				"value": {
+					"Primitive": {
+						resultType: result,
+					}
+				},
+			},
+		},
+	}
+
+
+
+expr = None
+
+for line in fileinput.input():
+	x = json.loads(line)
+	method = x.get("method", None)
+	if method == "config":
+		print_good_response({
+			"name": "eval",
+			"usage": "Evaluate",
+			"positional": [
+				({"Mandatory": ("expr", "String")}, ""),
+			],
+			"named": {},
+			"is_filter": True,
+		})
+		break
+
+	if method == "begin_filter":
+		positional = x["params"]["args"]["positional"]
+		value = positional[0]["value"]
+		try:
+			expr = value["Primitive"]["String"]
+		except KeyError:
+			#actual_type = "unknown"
+			#try:
+			#	pr = value["Primitive"]
+			#except KeyError:
+			#	pass
+			#else:
+			#	keys = list(pr.keys())
+			#	if keys:
+			#		actual_type = keys[0]
+			print [{"Err": {"error": {"TypeError": {
+				"expected": "string",
+				"actual": {"span": span},
+			}}}}]
+		else:
+			print_good_response([])
+		continue
+
+	if method == "filter":
+		print_good_response([
+			get_eval(expr, x),
+		])
+		continue
+
+	if method == "end_filter":
+		print_good_response([])
+		break
+
+	break
