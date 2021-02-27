@@ -14,6 +14,10 @@ echo [[a b c]; [1.0 2.5 3]] | eval "a + b + c"
 echo [[a b c]; [1.0 2.5 3]] | eval 'a > 1'
 echo [[h m s]; [12 44 13]] | eval 'timedelta(hours=h, minutes=m, seconds=s)'
 echo [[h m s]; [12 44 13]] | eval 'str(timedelta(hours=h, minutes=m, seconds=s))'
+echo [[d]; [12sec]] | eval 'd, str(d)' | flatten
+echo [[a b c]; [1.0 2.5 [3 4]]] | eval 'c' | flatten
+echo [[a b c]; [1.0 2.5 [3 4]]] | eval 'a, b' | flatten
+echo [[a b c]; [1.0 2.5 $nothing]] | eval 'repr(c)'
 
 
 ls | eval 'modified.isoformat()'
@@ -30,7 +34,7 @@ def print_good_response(response):
 	sys.stdout.flush()
 
 
-def parseValue(x: dict):
+def decodeValue(x: dict):
 	v = x["value"]
 	if "Primitive" in v:
 		p = v["Primitive"]
@@ -48,12 +52,58 @@ def parseValue(x: dict):
 				return factor * numList[0]
 			else:
 				return 0
+		if "Nothing" in p:
+			return None
 		if "Date" in p:
 			# p["Date"] = '2021-02-26T10:12:20.755311781+00:00'
 			# return datetime.strptime(p["Date"], '%Y-%m-%dT%H:%M:%S.%f%z')
 			from dateutil.parser import parse
 			return parse(p["Date"])
-		#if "Duration" in p:
+		if "Duration" in p:
+			nanoseconds = int(p["Duration"])
+			return timedelta(microseconds=nanoseconds/1000)
+
+	if "Table" in v:
+		return [decodeValue(item) for item in v["Table"]]
+
+	# print(x)
+
+
+def encodeValue(value):
+	if isinstance(value, (list, tuple)):
+		return {"Table": [
+			{
+				"value": encodeValue(x),
+				"tag": {"anchor": None, "span": {"start": 0, "end": 0}},
+			}
+			for x in value
+		]}
+
+	_type = "String"
+	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`, `ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`, `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
+	if isinstance(value, bool):
+		_type = "Boolean"
+	elif isinstance(value, int):
+		_type = "Int"
+		value = str(value)
+	elif isinstance(value, float):
+		_type = "Decimal"
+		value = str(value)
+	elif value is None:
+		_type = "Nothing"
+	elif isinstance(value, datetime):
+		_type = "Date"
+		value = value.isoformat()
+	elif isinstance(value, timedelta):
+		_type = "Duration"
+		nanoseconds = int(value.total_seconds()) * 1000000000 + value.microseconds
+		value = str(nanoseconds)
+
+	return {
+		"Primitive": {
+			_type: value,
+		}
+	}
 
 
 def get_eval(expr, x):
@@ -73,7 +123,7 @@ def get_eval(expr, x):
 		}}}}
 	else:
 		entries = {
-			key: parseValue(value)
+			key: decodeValue(value)
 			for key, value in row["entries"].items()
 		}
 
@@ -81,36 +131,12 @@ def get_eval(expr, x):
 		"datetime": datetime,
 		"timedelta": timedelta,
 	})
-	resultType = "String"
-	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`, `ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`, `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
-
-	if isinstance(result, bool):
-		resultType = "Boolean"
-	elif isinstance(result, int):
-		resultType = "Int"
-		result = str(result)
-	elif isinstance(result, float):
-		resultType = "Decimal"
-		result = str(result)
-	elif isinstance(result, datetime):
-		resultType = "Date"
-		result = result.isoformat()
-	elif isinstance(result, timedelta):
-		resultType = "Duration"
-		microseconds = int(result.total_seconds()) * 1000000000 + result.microseconds
-		result = str(microseconds)
-
-	#print(result, resultType)
 
 	return {
 		"Ok": {
 			"Value": {
 				"tag": tag,
-				"value": {
-					"Primitive": {
-						resultType: result,
-					}
-				},
+				"value": encodeValue(result),
 			},
 		},
 	}
