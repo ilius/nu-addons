@@ -3,7 +3,6 @@ import json
 import fileinput
 import sys
 import json
-
 from datetime import datetime
 from datetime import timedelta
 
@@ -31,6 +30,12 @@ echo [[a b c]; [1.0 2.5 $nothing]] | eval repr(c)
 
 ls | eval modified.isoformat()
 ls | eval modified + timedelta(days=1, hours=2)
+
+echo [[a b c]; [1.0 2.5 [3 4]]] | eval locals()
+echo [[a b c]; [1.0 2.5 [3 4]]] | eval globals()
+echo [[a]; [1]] | eval globals() | get __builtins__ | pivot
+
+
 """
 
 
@@ -89,12 +94,24 @@ def encodeValue(value):
 			}
 			for x in value
 		]}
+	if isinstance(value, (dict)):
+		return {"Row": {
+			"entries": {
+				k: {
+					"value": encodeValue(v),
+					"tag": {"anchor": None, "span": {"start": 0, "end": 0}},
+				}
+				for k, v in value.items()
+			},
+		}}
 
 	_type = "String"
 	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`,
 	# ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`,
 	# `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
-	if isinstance(value, bool):
+	if isinstance(value, str):
+		pass
+	elif isinstance(value, bool):
 		_type = "Boolean"
 	elif isinstance(value, int):
 		_type = "Int"
@@ -113,6 +130,10 @@ def encodeValue(value):
 		value = str(nanoseconds)
 	elif isinstance(value, type):
 		value = str(value)  # or value.__name__
+	elif value.__class__.__name__ == "ModuleSpec":
+		value = str(value)
+	else:
+		value = str(value)
 
 	return {
 		"Primitive": {
@@ -183,7 +204,7 @@ for line in fileinput.input():
 	if method == "config":
 		print_good_response({
 			"name": "eval",
-			"usage": "Evaluate",
+			"usage": "Evaluate a Python expression using table as variables",
 			"positional": [],
 			"rest_positional": ("String", ""),
 			"named": {},
