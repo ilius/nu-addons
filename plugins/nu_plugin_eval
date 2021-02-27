@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 import json
 import fileinput
+import os
 import sys
-import json
 from datetime import datetime
 from datetime import timedelta
 
@@ -34,6 +34,7 @@ ls | eval modified + timedelta(days=1, hours=2)
 echo [[a b c]; [1.0 2.5 [3 4]]] | eval locals()
 echo [[a b c]; [1.0 2.5 [3 4]]] | eval globals()
 echo [[a]; [1]] | eval globals() | get __builtins__ | pivot
+echo [[a]; [1]] | eval getenv("PATH").split(":") | flatten
 
 
 """
@@ -181,6 +182,7 @@ def get_eval(rawArgs, data):
 		result = eval(expr, entries, {
 			"datetime": datetime,
 			"timedelta": timedelta,
+			"getenv": os.getenv,
 		})
 	except Exception as e:
 		e.msg += f"\nargs = {args}\nrawArgs = {rawArgs}"
