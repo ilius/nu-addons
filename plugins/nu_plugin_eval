@@ -183,9 +183,14 @@ def get_eval(rawArgs, data):
 			"datetime": datetime,
 			"timedelta": timedelta,
 			"getenv": os.getenv,
+			"open": None,
+			"exec": None,
+			"input": None,
+			"print": None,
 		})
 	except Exception as e:
-		e.msg += f"\nargs = {args}\nrawArgs = {rawArgs}"
+		if hasattr(e, "msg"):
+			e.msg += f"\nargs = {args}\nrawArgs = {rawArgs}"
 		raise e
 
 	return {
