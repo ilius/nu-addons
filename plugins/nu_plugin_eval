@@ -29,20 +29,22 @@ echo [[a b c]; [1.0 2.5 $nothing]] | eval 'repr(c)'
 
 ls | eval 'modified.isoformat()'
 ls | eval 'modified + timedelta(days=1, hours=2)'
-
-
 """
 
 
-
 def print_good_response(response):
-	json_response = {"jsonrpc": "2.0", "method": "response", "params": {"Ok": response}}
+	json_response = {
+		"jsonrpc": "2.0",
+		"method": "response",
+		"params": {"Ok": response},
+	}
 	print(json.dumps(json_response))
 	sys.stdout.flush()
 
 
-def decodeValue(x: dict):
-	v = x["value"]
+def decodeValue(v: dict):
+	if "value" in v:
+		v = v["value"]
 	if "Primitive" in v:
 		p = v["Primitive"]
 		if "String" in p:
@@ -68,7 +70,7 @@ def decodeValue(x: dict):
 			return parse(p["Date"])
 		if "Duration" in p:
 			nanoseconds = int(p["Duration"])
-			return timedelta(microseconds=nanoseconds/1000)
+			return timedelta(microseconds=nanoseconds / 1000)
 
 	if "Table" in v:
 		return [decodeValue(item) for item in v["Table"]]
@@ -87,7 +89,9 @@ def encodeValue(value):
 		]}
 
 	_type = "String"
-	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`, `ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`, `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
+	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`,
+	# ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`,
+	# `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
 	if isinstance(value, bool):
 		_type = "Boolean"
 	elif isinstance(value, int):
@@ -115,9 +119,14 @@ def encodeValue(value):
 	}
 
 
-def get_eval(expr, x):
-	#print(x)
-	params = x["params"]
+def get_eval(rawArgs, data):
+	args = [
+		decodeValue(rawArg)
+		for rawArg in rawArgs
+	]
+	expr = " ".join(args)
+	# expr = " ".join([str(arg) for arg in args])
+	params = data["params"]
 	tag = params["tag"]
 	span = tag["span"]
 	value = params["value"]
@@ -125,7 +134,7 @@ def get_eval(expr, x):
 	try:
 		row = value["Row"]
 	except KeyError:
-		#print(repr(value))
+		# print(repr(value))
 		return {"Err": {"error": {"TypeError": {
 			"expected": "row",
 			"actual": {"span": span},
@@ -136,10 +145,14 @@ def get_eval(expr, x):
 			for key, value in row["entries"].items()
 		}
 
-	result = eval(expr, entries, {
-		"datetime": datetime,
-		"timedelta": timedelta,
-	})
+	try:
+		result = eval(expr, entries, {
+			"datetime": datetime,
+			"timedelta": timedelta,
+		})
+	except Exception as e:
+		e.msg += f"\nargs = {args}\nrawArgs = {rawArgs}"
+		raise e
 
 	return {
 		"Ok": {
@@ -151,8 +164,7 @@ def get_eval(expr, x):
 	}
 
 
-
-expr = None
+args = []
 
 for line in fileinput.input():
 	x = json.loads(line)
@@ -161,40 +173,32 @@ for line in fileinput.input():
 		print_good_response({
 			"name": "eval",
 			"usage": "Evaluate",
-			"positional": [
-				({"Mandatory": ("expr", "String")}, ""),
-			],
+			"positional": [],
+			"rest_positional": ("String", ""),
 			"named": {},
 			"is_filter": True,
 		})
 		break
 
 	if method == "begin_filter":
-		positional = x["params"]["args"]["positional"]
-		value = positional[0]["value"]
-		try:
-			expr = value["Primitive"]["String"]
-		except KeyError:
-			#actual_type = "unknown"
-			#try:
-			#	pr = value["Primitive"]
-			#except KeyError:
-			#	pass
-			#else:
-			#	keys = list(pr.keys())
-			#	if keys:
-			#		actual_type = keys[0]
-			print [{"Err": {"error": {"TypeError": {
-				"expected": "string",
-				"actual": {"span": span},
-			}}}}]
+		for rawArg in x["params"]["args"]["positional"]:
+			arg = rawArg["value"]
+			try:
+				expr = arg["Primitive"]["String"]
+			except KeyError:
+				print([{"Err": {"error": {"TypeError": {
+					"expected": "string",
+					"actual": {"span": span},
+				}}}}])
+				break
+			args.append(arg)
 		else:
 			print_good_response([])
 		continue
 
 	if method == "filter":
 		print_good_response([
-			get_eval(expr, x),
+			get_eval(args, x),
 		])
 		continue
 
