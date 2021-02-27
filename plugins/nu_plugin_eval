@@ -10,11 +10,18 @@ from datetime import timedelta
 """
 Examples:
 
+echo [1 2 3] | wrap a | eval 'a**2' | wrap a^2
+seq 1 10 | wrap a | eval "int(a)**2" | wrap a^2
+seq 1 10 | wrap a | str to-int a | insert a^2 {eval "a**2"}
+
 echo [[a b c]; [1.0 2.5 3]] | eval "a + b + c"
 echo [[a b c]; [1.0 2.5 3]] | eval 'a > 1'
+echo [[a b c]; [1.0 2.5 3]] | eval "f'a={a}, b={b}, c={c}'"
+
 echo [[h m s]; [12 44 13]] | eval 'timedelta(hours=h, minutes=m, seconds=s)'
 echo [[h m s]; [12 44 13]] | eval 'str(timedelta(hours=h, minutes=m, seconds=s))'
 echo [[d]; [12sec]] | eval 'd, str(d)' | flatten
+
 echo [[a b c]; [1.0 2.5 [3 4]]] | eval 'c' | flatten
 echo [[a b c]; [1.0 2.5 [3 4]]] | eval 'a, b' | flatten
 echo [[a b c]; [1.0 2.5 $nothing]] | eval 'repr(c)'
@@ -98,6 +105,8 @@ def encodeValue(value):
 		_type = "Duration"
 		nanoseconds = int(value.total_seconds()) * 1000000000 + value.microseconds
 		value = str(nanoseconds)
+	elif isinstance(value, type):
+		value = str(value)  # or value.__name__
 
 	return {
 		"Primitive": {
