@@ -116,43 +116,39 @@ def encodeValue(value):
 			},
 		}}
 
-	_type = "String"
 	# expected one of `Nothing`, `Int`, `Decimal`, `Filesize`, `String`,
 	# ColumnPath`, `GlobPattern`, `Boolean`, `Date`, `Duration`, `Range`,
 	# `FilePath`, `Binary`, `BeginningOfStream`, `EndOfStream`
-	if isinstance(value, str):
-		pass
-	elif isinstance(value, bool):
-		_type = "Boolean"
-	elif isinstance(value, int):
-		_type = "Int"
-		value = str(value)
-	elif isinstance(value, float):
-		_type = "Decimal"
-		value = str(value)
-	elif value is None:
-		_type = "Nothing"
-	elif isinstance(value, datetime):
-		_type = "Date"
-		value = value.isoformat()
-	elif isinstance(value, timedelta):
-		_type = "Duration"
-		nanoseconds = int(value.total_seconds()) * 1000000000 + value.microseconds
-		value = str(nanoseconds)
-	elif isinstance(value, type):
-		value = str(value)  # or value.__name__
-	elif value.__class__.__name__ == "ModuleSpec":
-		value = str(value)
-	elif value.__class__.__name__ == "LazyLocals":
-		return encodeValue(dict(value))
-	else:
-		value = str(value)
 
-	return {
-		"Primitive": {
-			_type: value,
-		}
-	}
+	if isinstance(value, str):
+		return {"Primitive": {"String": value}}
+
+	if isinstance(value, bool):
+		return {"Primitive": {"Boolean": value}}
+
+	if isinstance(value, int):
+		return {"Primitive": {"Int": str(value)}}
+
+	if isinstance(value, float):
+		return {"Primitive": {"Decimal": str(value)}}
+
+	if value is None:
+		return {"Primitive": {"Nothing": None}}
+
+	if isinstance(value, datetime):
+		return {"Primitive": {"Date": value.isoformat()}}
+
+	if isinstance(value, timedelta):
+		nanoseconds = int(value.total_seconds()) * 1000000000 + value.microseconds
+		return {"Primitive": {"Duration": str(nanoseconds)}}
+
+	if isinstance(value, type):
+		return {"Primitive": {"String": str(value)}}  # or value.__name__
+
+	if value.__class__.__name__ == "LazyLocals":
+		return encodeValue(dict(value))
+
+	return {"Primitive": {"String": str(value)}}
 
 
 class LazyLocals:
@@ -226,7 +222,7 @@ args = []
 
 for line in fileinput.input():
 	x = json.loads(line)
-	method = x.get("method", None)
+	method = x.get("method")
 	if method == "config":
 		print_good_response({
 			"name": "eval",
