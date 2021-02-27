@@ -1,3 +1,7 @@
+def last-duration [] {
+	echo $nu.env.CMD_DURATION
+}
+
 def lower-column [p] {
 	str from $p | str downcase $p
 }
