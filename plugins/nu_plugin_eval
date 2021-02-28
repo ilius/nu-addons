@@ -11,9 +11,9 @@ Examples:
 
 echo [1 2 3] | wrap a | eval a**2 | wrap a^2
 echo [1 2 3] | wrap a | eval a ** 2 | wrap a^2
-seq 1 10 | wrap a | eval int(a)**2 | wrap a^2
-seq 1 10 | wrap a | eval int(a) ** 2 | wrap a^2
-seq 1 10 | wrap a | str to-int a | insert a^2 {eval a**2}
+seq 1 5 | wrap a | eval int(a)**2 | wrap a^2
+seq 1 5 | wrap a | eval int(a) ** 2 | wrap a^2
+seq 1 5 | wrap a | str to-int a | insert a^2 {eval a**2}
 
 echo [[a b c]; [1.0 2.5 3]] | eval a + b + c
 echo [[a b c]; [1.0 2.5 3]] | eval a > 1
@@ -36,6 +36,9 @@ echo [[a b c]; [1.0 2.5 [3 4]]] | eval globals() | pivot
 echo [[a]; [1]] | eval globals() | get __builtins__ | pivot
 echo [[a]; [1]] | eval getenv("PATH").split(":") | flatten
 
+echo [[a b c]; [1.0 2.5 3]] | eval a + b + c -a sum
+
+echo [[a b]; [1.0 2.5] [3 2] [4 4]] | eval a>=b -a check -f
 
 """
 
@@ -92,6 +95,12 @@ def decodeValue(v: dict):
 
 	if "Table" in v:
 		return [decodeValue(item) for item in v["Table"]]
+
+	if "Row" in v:
+		return {
+			key: decodeValue(val)
+			for key, val in v["Row"]["entries"].items()
+		}
 
 	# print(x)
 
@@ -156,6 +165,7 @@ class LazyLocals:
 		self.d = d
 
 	def __getitem__(self, key):
+		# if key == "row":
 		return decodeValue(self.d[key])
 
 	def keys(self):
@@ -169,7 +179,12 @@ class LazyLocals:
 		return self.items()
 
 
-def get_eval(rawArgs, data):
+def run(
+	rawArgs: dict,
+	data: dict,
+	appendColumn: bool,
+	enableFilter: bool,
+):
 	if not rawArgs:
 		return {
 			"Ok": {
@@ -208,6 +223,16 @@ def get_eval(rawArgs, data):
 			e.msg += f"\nargs = {args}\nrawArgs = {rawArgs}"
 		raise e
 
+	if enableFilter:
+		if not result:
+			return
+		evalResult, result = result, dict(_locals)
+		if appendColumn:
+			result[appendColumn] = evalResult
+	elif appendColumn:
+		evalResult, result = result, dict(_locals)
+		result[appendColumn] = evalResult
+
 	return {
 		"Ok": {
 			"Value": {
@@ -219,6 +244,8 @@ def get_eval(rawArgs, data):
 
 
 args = []
+appendColumn = None
+enableFilter = False
 
 for line in fileinput.input():
 	x = json.loads(line)
@@ -229,15 +256,35 @@ for line in fileinput.input():
 			"usage": "Evaluate a Python expression using table as variables",
 			"positional": [],
 			"rest_positional": ("String", ""),
-			"named": {},
+			"named": {
+				"help": (
+					{"Switch": "h"},
+					"Display this help message",
+				),
+				"append": (
+					{"Optional":["a", "String"]},
+					"append the result as a column"
+				),
+				"filter": (
+					{"Switch": "f"},
+					"Filter rows based on the expression (as boolean)",
+				),
+			},
 			"is_filter": True,
 		})
 		break
 
 	if method == "begin_filter":
+		# print(x["params"])
 		positional = x["params"]["args"]["positional"]
 		if positional is None:
 			positional = []
+		named = x["params"]["args"]["named"]
+		if named:
+			if "append" in named:
+				appendColumn = named["append"]["value"]["Primitive"]["String"]
+			if "filter" in named:
+				enableFilter = True
 		for rawArg in positional:
 			arg = rawArg["value"]
 			try:
@@ -254,9 +301,11 @@ for line in fileinput.input():
 		continue
 
 	if method == "filter":
-		print_good_response([
-			get_eval(args, x),
-		])
+		res = run(args, x, appendColumn, enableFilter)
+		if res is None:
+			print_good_response([])
+		else:
+			print_good_response([res])
 		continue
 
 	if method == "end_filter":
