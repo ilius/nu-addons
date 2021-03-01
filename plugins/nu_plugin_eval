@@ -13,7 +13,7 @@ echo [1 2 3] | wrap a | eval a**2 | wrap a^2
 echo [1 2 3] | wrap a | eval a ** 2 | wrap a^2
 seq 1 5 | wrap a | eval int(a)**2 | wrap a^2
 seq 1 5 | wrap a | eval int(a) ** 2 | wrap a^2
-seq 1 5 | wrap a | str to-int a | insert a^2 {eval a**2}
+seq 1 5 | wrap a | str to-int a | eval a**2 -a a^2
 
 echo [[a b c]; [1.0 2.5 3]] | eval a + b + c
 echo [[a b c]; [1.0 2.5 3]] | eval a > 1
