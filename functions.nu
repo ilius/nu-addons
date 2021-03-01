@@ -1,3 +1,7 @@
+def seqn [a b] {
+	seq $a $b | wrap n | str to-int n
+}
+
 def last-duration [] {
 	echo $nu.env.CMD_DURATION
 }
