@@ -42,6 +42,9 @@ echo [[a b c]; [1.0 2.5 3]] | eval a + b + c -a sum
 
 echo [[a b]; [1.0 2.5] [3 2] [4 4]] | eval a>=b -a check -f
 echo [[x f]; [-5 'x*2'] [4 'x*3'] [1.5 'x**2']] | eval 'eval(f)' -a f(x)
+echo [[a(b)]; [3.5]] | eval 'row["a(b)"]'
+echo [[a(b)]; [3.5]] | eval 'row[cols[0]]'
+
 
 
 """
@@ -169,8 +172,13 @@ class LazyLocals:
 		self.d = d
 
 	def __getitem__(self, key):
-		# if key == "row":
-		return decodeValue(self.d[key])
+		if key in self.d:
+			return decodeValue(self.d[key])
+		if key == "row":
+			return self
+		if key == "cols":
+			return list(self.d.keys())
+		raise KeyError("")
 
 	def keys(self):
 		return self.d.keys()
