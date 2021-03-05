@@ -26,6 +26,13 @@ def config-show [] {
 	config | pivot | rename key value
 }
 
+def config-section [p] {
+	config | get $p | pivot | rename key value | str from value
+}
+# config-section line_editor
+# config-section color_config
+
+
 def cd.. [] {
 	cd ..
 }
