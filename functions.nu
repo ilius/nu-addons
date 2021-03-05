@@ -96,3 +96,7 @@ def value [string] {
 	# where value =~ $string  # <-- case-sensitive
 	column-contains value $string  # <-- case-insensitive
 }
+
+def hex2int [s] {
+	echo $s | str to-int -r 16
+}

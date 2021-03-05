@@ -46,3 +46,7 @@ def insert-nth-line [n] {
 def search-nth-line [n s] {
 	insert-nth-line $n | where $(get $(build-string "line" $n)) =~ $s
 }
+
+def int2hex [n] {
+	printf '%x' $(build-string $n)
+}
