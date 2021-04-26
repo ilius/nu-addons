@@ -63,8 +63,8 @@ def size2int [] {
 }
 
 def insert-extension [] {
-	insert ext { each {echo $it.name | path extension}}
-	# FIXME: 'path extension' is replaced with 'path split' recently
+	insert ext { each {echo $it.name | path parse | get extension}}
+	# Note: 'path extension' is replaced with 'path parse | get extension' recently
 }
 
 def ssv [] {
