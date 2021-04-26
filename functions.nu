@@ -64,6 +64,7 @@ def size2int [] {
 
 def insert-extension [] {
 	insert ext { each {echo $it.name | path extension}}
+	# FIXME: 'path extension' is replaced with 'path split' recently
 }
 
 def ssv [] {
@@ -100,3 +101,19 @@ def value [string] {
 def hex2int [s] {
 	echo $s | str to-int -r 16
 }
+
+def show-path-count [] {
+	echo $nu.path | wrap path | sort-by path | uniq -c | sort-by count -r
+}
+
+def seq2 [a b] {
+	seq $(echo $a | into int) $(echo $b | into int)
+}
+# example: seq2 "-10" "-5"
+
+def seq3 [a b c] {
+	seq $(echo $a | into int) $(echo $b | into int) $(echo $c | into int)
+}
+# example: seq3 "-20" 2 "-10"
+# example: seq3 "-10" "-2" "-20"
+
