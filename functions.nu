@@ -117,3 +117,15 @@ def seq3 [a b c] {
 # example: seq3 "-20" 2 "-10"
 # example: seq3 "-10" "-2" "-20"
 
+def mod [a b] {
+	echo $a % $b | str from | str collect | math eval | into int
+}
+
+def ls-last-timestamp [] {
+	ls | sort-by modified -r |
+		insert mtime {each {echo $it.modified | date format %s}} |
+		select name mtime |
+		into int mtime
+}
+
+# ls-last-timestamp | insert mtime_day {each {mod $it.mtime 86400}}
